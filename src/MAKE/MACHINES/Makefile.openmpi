@@ -87,8 +87,8 @@ vpath %.cpp ..
 vpath %.h ..
 
 # Link target
-$(EXE):	$(filter-out main.o, $(OBJ)) $(EXTRA_LINK_DEPENDS)
-	$(LINK) $(LINKFLAGS) $(EXTRA_PATH) $(filter-out main.o, $(OBJ)) $(EXTRA_LIB) $(LIB) -o $(EXE)
+$(EXE):	$(OBJ) $(EXTRA_LINK_DEPENDS)
+	$(LINK) $(LINKFLAGS) $(EXTRA_PATH) $(OBJ) $(EXTRA_LIB) $(LIB) -o $(EXE)
 	$(SIZE) $(EXE)
 
 # Library targets
