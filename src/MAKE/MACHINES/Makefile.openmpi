@@ -7,8 +7,7 @@ SHELL = /bin/sh
 # specify flags and libraries needed for your compiler
 
 CC =		mpic++
-CCFLAGS =	-O3 \
-		-funroll-loops -fstrict-aliasing -Wall -W -Wno-uninitialized
+CCFLAGS =	-O3 -funroll-loops -fstrict-aliasing -Wall -W -Wno-uninitialized
 #CCFLAGS =	-O0 -g
 SHFLAGS =	-fPIC
 DEPFLAGS =	-M
@@ -88,9 +87,8 @@ vpath %.cpp ..
 vpath %.h ..
 
 # Link target
-
-$(EXE):	$(OBJ) $(EXTRA_LINK_DEPENDS)
-	$(LINK) $(LINKFLAGS) $(EXTRA_PATH) $(OBJ) $(EXTRA_LIB) $(LIB) -o $(EXE)
+$(EXE):	$(filter-out main.o, $(OBJ)) $(EXTRA_LINK_DEPENDS)
+	$(LINK) $(LINKFLAGS) $(EXTRA_PATH) $(filter-out main.o, $(OBJ)) $(EXTRA_LIB) $(LIB) -o $(EXE)
 	$(SIZE) $(EXE)
 
 # Library targets
@@ -105,7 +103,7 @@ shlib:	$(OBJ) $(EXTRA_LINK_DEPENDS)
 # Compilation rules
 
 %.o:%.cpp $(EXTRA_CPP_DEPENDS)
-	$(CC) $(CCFLAGS) $(SHFLAGS) $(EXTRA_INC) -c $<
+	$(CC) $(CCFLAGS) $(SHFLAGS) $(EXTRA_INC) -c $<	
 
 %.d:%.cpp $(EXTRA_CPP_DEPENDS)
 	$(CC) $(CCFLAGS) $(EXTRA_INC) $(DEPFLAGS) $< > $@
@@ -113,7 +111,7 @@ shlib:	$(OBJ) $(EXTRA_LINK_DEPENDS)
 %.o:%.cu $(EXTRA_CPP_DEPENDS)
 	$(CC) $(CCFLAGS) $(SHFLAGS) $(EXTRA_INC) -c $<
 
-# Individual dependencies
+#Individual dependencies
 
 depend : fastdep.exe $(SRC)
 	@./fastdep.exe $(EXTRA_INC) -- $^ > .depend || exit 1
