@@ -14,20 +14,10 @@
 #include <mpi.h>
 #include "lammps.h"
 #include "input.h"
-#include "error.h"
 #include <stdio.h>
-#include <stdlib.h>
-
-#ifdef ENABLE_MUI
-#include "mui.h"
-#endif
 
 #if defined(LAMMPS_TRAP_FPE) && defined(_GNU_SOURCE)
 #include <fenv.h>
-#endif
-
-#ifdef FFT_FFTW3
-#include <fftw3.h>
 #endif
 
 using namespace LAMMPS_NS;
@@ -38,12 +28,7 @@ using namespace LAMMPS_NS;
 
 int main(int argc, char **argv)
 {
-  MPI_Init(&argc,&argv);  
-
-  MPI_Comm world = MPI_COMM_WORLD;
-#ifdef ENABLE_MUI
-  world = mui::mpi_split_by_app();
-#endif
+  MPI_Init(&argc, &argv);
 
 // enable trapping selected floating point exceptions.
 // this uses GNU extensions and is only tested on Linux
@@ -59,7 +44,7 @@ int main(int argc, char **argv)
 
 #ifdef LAMMPS_EXCEPTIONS
   try {
-    LAMMPS *lammps = new LAMMPS(argc,argv,world);
+    LAMMPS *lammps = new LAMMPS(argc,argv,MPI_COMM_WORLD);
     lammps->input->file();
     delete lammps;
   } catch(LAMMPSAbortException & ae) {
@@ -69,17 +54,11 @@ int main(int argc, char **argv)
     exit(1);
   }
 #else
-  LAMMPS *lammps = new LAMMPS(argc,argv,world);
+  LAMMPS *lammps = new LAMMPS(argc,argv,MPI_COMM_WORLD);
   lammps->input->file();
   delete lammps;
 #endif
 
-  MPI_Barrier(world);
+  MPI_Barrier(MPI_COMM_WORLD);
   MPI_Finalize();
-
-#ifdef FFT_FFTW3
-  // tell fftw3 to delete its global memory pool
-  // and thus avoid bogus valgrind memory leak reports
-  fftw_cleanup();
-#endif
 }
