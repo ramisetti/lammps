@@ -55,6 +55,7 @@ class FixMDtoCFD : public Fix {
   void compute_time_averaged_velocity(int ireg);
   void compute_spatial_averaged_velocity(int ireg, int phase_groupbit);
   void C_to_A_coupling(int);
+  void C_to_A_coupling_velocity(int);
   virtual void final_integrate();
 
   
@@ -66,7 +67,7 @@ class FixMDtoCFD : public Fix {
   
 
  protected:
-  double dtv,dtf;
+  double dtv,dtf,mv_t2f;
   double *step_respa;
   int mass_require;
   int nevery;

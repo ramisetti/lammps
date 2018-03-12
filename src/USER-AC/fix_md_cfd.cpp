@@ -53,18 +53,23 @@ FixMDtoCFD::FixMDtoCFD(LAMMPS *lmp, int narg, char **arg) :
     // this is valid only for argon
     factor_to_OF_vel=(3.4e-10/2.15e-12);
     factor_to_lammps_vel=1/factor_to_OF_vel;
+    mv_t2f=1.0;
   }
   else if (strcmp(update->unit_style,"real") == 0) {
     factor_to_OF_vel=1.0e5;
     factor_to_lammps_vel=1.0e-5;
+    //factor_to_lammps_vel=1.0;
+    mv_t2f=1.0/4184;
   }
   else if (strcmp(update->unit_style,"si") == 0) {
     factor_to_OF_vel=1;
     factor_to_lammps_vel=1;
+    mv_t2f=4184; // to do
   }
   else if (strcmp(update->unit_style,"metal") == 0) {
     factor_to_OF_vel=1.0e2;
     factor_to_lammps_vel=1.0e-2;
+    mv_t2f=4184; // to do
   }
   else error->all(FLERR,"no units command!");
 
@@ -552,7 +557,8 @@ void FixMDtoCFD::post_force(int vflag)
 
   //update_velocity(vflag);
   
-  C_to_A_coupling(vflag);
+  //C_to_A_coupling(vflag);
+  C_to_A_coupling_velocity(vflag);
 }
 
 void FixMDtoCFD::C_to_A_coupling(int vflag) {
@@ -587,14 +593,18 @@ void FixMDtoCFD::C_to_A_coupling(int vflag) {
   force_flag = 0;
 
   double tmp[nC2ADataPoints_p1][3];
-  if(update->ntimestep%nevery==0)
+  //if(update->ntimestep%nevery==0)
     for (int j=0; j< nC2ADataPoints_p1; j++){
-      tmp[j][0] = -phase1_C2A_global_avg_acc[j][0] + (v_value[j][0]-phase1_C2A_global_avg_vel[j][0])/update->dt;
-      tmp[j][1] = -phase1_C2A_global_avg_acc[j][1] + (v_value[j][1]-phase1_C2A_global_avg_vel[j][1])/update->dt;
-      tmp[j][2] = -phase1_C2A_global_avg_acc[j][2] + (v_value[j][2]-phase1_C2A_global_avg_vel[j][2])/update->dt;
+      
+      tmp[j][0] = -phase1_C2A_global_avg_acc[j][0] + mv_t2f*mass[type[j]]*(v_value[j][0]-phase1_C2A_global_avg_vel[j][0])/update->dt;
+      tmp[j][1] = -phase1_C2A_global_avg_acc[j][1] + mv_t2f*mass[type[j]]*(v_value[j][1]-phase1_C2A_global_avg_vel[j][1])/update->dt;
+      tmp[j][2] = -phase1_C2A_global_avg_acc[j][2] + mv_t2f*mass[type[j]]*(v_value[j][2]-phase1_C2A_global_avg_vel[j][2])/update->dt;
       
       //tmp[j][0] = (v_value[j][0]-phase1_C2A_global_avg_vel[j][0]);
       //tmp[j][1] = (v_value[j][1]-phase1_C2A_global_avg_vel[j][1]);
+
+      // tmp[j][0] = v_value[j][0];
+      // tmp[j][1] = v_value[j][1];
       
       //fprintf(stdout,"TT %d %d %f %f \n",update->ntimestep,j,tmp[j][0],tmp[j][1]);
     }
@@ -602,7 +612,7 @@ void FixMDtoCFD::C_to_A_coupling(int vflag) {
   int C2A_ind=0;
   if (varflag == CONSTANT) {
     for (int i = 0; i < nlocal; i++)
-      if (mask[i] & groupbit) {
+      if (mask[i] & phase1_groupbit) {
 	if (region && !region->match(x[i][0], x[i][1], x[i][2]))
 	  continue;
 	
@@ -619,16 +629,149 @@ void FixMDtoCFD::C_to_A_coupling(int vflag) {
 	foriginal[2] += f[i][2];
 
 	if (xstyle) {
-	  //v[i][0] += tmp[C2A_ind][0];
-	  f[i][0] += mass[type[i]]*tmp[C2A_ind][0];
+	  //v[i][0] = tmp[C2A_ind][0];
+	  f[i][0] += tmp[C2A_ind][0];
+	  //fprintf(stdout, " TYPE %d %d MASS %f\n", i, type[i], mass[type[i]]);
 	}
 	if (ystyle) {	  
-	  //v[i][1] += tmp[C2A_ind][1];
-	  f[i][1] += mass[type[i]]*tmp[C2A_ind][1];
+	  //v[i][1] = tmp[C2A_ind][1];
+	  f[i][1] += tmp[C2A_ind][1];
 	}
 	if (zstyle) {
-	  //v[i][2] += tmp[C2A_ind][2];
-	  f[i][2] += mass[type[i]]*tmp[C2A_ind][2];
+	  //v[i][2] = tmp[C2A_ind][2];
+	  f[i][2] += tmp[C2A_ind][2];
+	}
+      }
+ 
+    // variable force, wrap with clear/add
+  }
+  /*  else {
+    
+    modify->clearstep_compute();
+    
+    if (xstyle == EQUAL)
+      v_value[0][0]= input->variable->compute_equal(xvar);
+    else if (xstyle == ATOM)
+      input->variable->compute_atom(xvar, igroup, &svelocity[0][0], 3, 0);
+    if (ystyle == EQUAL)
+      v_value[0][1] = input->variable->compute_equal(yvar);
+    else if (ystyle == ATOM)
+      input->variable->compute_atom(yvar, igroup, &svelocity[0][1], 3, 0);
+    if (zstyle == EQUAL)
+      v_value[0][2] = input->variable->compute_equal(zvar);
+    else if (zstyle == ATOM)
+      input->variable->compute_atom(zvar, igroup, &svelocity[0][2], 3, 0);
+    
+    modify->addstep_compute(update->ntimestep + 1);
+    
+    for (int i = 0; i < nlocal; i++)
+      if (mask[i] & groupbit) {
+	if (region && !region->match(x[i][0], x[i][1], x[i][2]))
+	  continue;
+	
+	// does not work for two phase systems
+	C2A_ind = fac_p1_C2A*(x[i][1]-region->extent_ylo);
+	
+	foriginal[0] += f[i][0];
+	foriginal[1] += f[i][1];
+	foriginal[2] += f[i][2];
+	if (xstyle == ATOM) {
+	  v[i][0] = svelocity[i][0];
+	  f[i][0] = 0.0;
+	} else if (xstyle) {
+	  v[i][0] = v_value[C2A_ind][0];
+	  f[i][0] = 0.0;
+	}
+	
+	if (ystyle == ATOM) {
+	  v[i][1] = svelocity[i][1];
+	  f[i][1] = 0.0;
+	} else if (ystyle) {
+	  v[i][1] = v_value[C2A_ind][1];
+	  f[i][1] = 0.0;
+	}
+	
+	if (zstyle == ATOM) {
+	  v[i][2] = svelocity[i][2];
+	  f[i][2] = 0.0;
+	} else if (zstyle) {
+	  v[i][2] = v_value[C2A_ind][2];
+	  f[i][2] = 0.0;
+	}
+	
+      }
+  }
+*/
+}
+
+void FixMDtoCFD::C_to_A_coupling_velocity(int vflag) {
+  
+  compute_spatial_averaged_velocity(phase1_region_c_to_a,phase1_groupbit);
+
+  double **x = atom->x;
+  double **f = atom->f;
+  double **v = atom->v;
+  double *mass = atom->mass;
+  int *mask = atom->mask;
+  int *type = atom->type;
+  int nlocal = atom->nlocal;
+  
+  // update region if necessary
+  
+  Region *region = NULL;
+  if (phase1_region_c_to_a >= 0) {
+    region = domain->regions[phase1_region_c_to_a];
+    region->prematch();
+  }
+
+  // reallocate svelocity array if necessary
+  
+  if (varflag == ATOM && atom->nmax > maxatom) {
+    maxatom = atom->nmax;
+    memory->destroy(svelocity);
+    memory->create(svelocity, maxatom, 3, "setvelocity:svelocity");
+  }
+
+  foriginal[0] = foriginal[1] = foriginal[2] = 0.0;
+  force_flag = 0;
+
+  double tmp[nC2ADataPoints_p1][3];
+  //if(update->ntimestep%nevery==0)
+    for (int j=0; j< nC2ADataPoints_p1; j++){
+      tmp[j][0] = (v_value[j][0]-phase1_C2A_global_avg_vel[j][0]);
+      tmp[j][1] = (v_value[j][1]-phase1_C2A_global_avg_vel[j][1]);
+
+
+      //fprintf(stdout,"TT %d %d %f %f \n",update->ntimestep,j,tmp[j][0],tmp[j][1]);
+    }
+
+  int C2A_ind=0;
+  if (varflag == CONSTANT) {
+    for (int i = 0; i < nlocal; i++)
+      if (mask[i] & phase1_groupbit) {
+	if (region && !region->match(x[i][0], x[i][1], x[i][2]))
+	  continue;
+	
+	// does not work for two phase systems
+	C2A_ind = fac_p1_C2A*(x[i][1]-region->extent_ylo);
+	
+	if(C2A_ind<0 || C2A_ind>=nC2ADataPoints_p1) fprintf(stdout, "BIG ERROR %d %d\n", update->ntimestep, C2A_ind);
+	
+	//f[i][0] += mass[type[i]]*tmp[C2A_ind][0];
+	//f[i][1] += mass[type[i]]*tmp[C2A_ind][1];
+	
+	foriginal[0] += f[i][0];
+	foriginal[1] += f[i][1];
+	foriginal[2] += f[i][2];
+
+	if (xstyle) {
+	  v[i][0] += tmp[C2A_ind][0];
+	}
+	if (ystyle) {	  
+	  v[i][1] += tmp[C2A_ind][1];
+	}
+	if (zstyle) {
+	  v[i][2] += tmp[C2A_ind][2];
 	}
       }
  
@@ -735,7 +878,7 @@ void FixMDtoCFD::update_velocity(int vflag) {
 		
 		if (xstyle) {
 		  v[i][0] = v_value[C2A_ind][0];
-		    //f[i][0] = 0.0;
+		  //f[i][0] = 0.0;
 		}
 		if (ystyle) {
 		  v[i][1] = v_value[C2A_ind][1];
@@ -1069,8 +1212,10 @@ void FixMDtoCFD::compute_spatial_averaged_velocity(int ireg, int phase_groupbit)
       C2A_ind = fac_p1_C2A*(x[i][1]-region->extent_ylo);
       phase1_C2A_avg_vel_per_proc[C2A_ind][0]+=v[i][0];
       phase1_C2A_avg_vel_per_proc[C2A_ind][1]+=v[i][1];
-      phase1_C2A_avg_acc_per_proc[C2A_ind][0]+=f[i][0]/mass[type[i]];
-      phase1_C2A_avg_acc_per_proc[C2A_ind][1]+=f[i][1]/mass[type[i]];
+      //phase1_C2A_avg_acc_per_proc[C2A_ind][0]+=f[i][0]/mass[type[i]];
+      //phase1_C2A_avg_acc_per_proc[C2A_ind][1]+=f[i][1]/mass[type[i]];
+      phase1_C2A_avg_acc_per_proc[C2A_ind][0]+=f[i][0];
+      phase1_C2A_avg_acc_per_proc[C2A_ind][1]+=f[i][1];
       phase1_C2A_numAtoms[C2A_ind]++;
       if(C2A_ind<0 || C2A_ind>nC2ADataPoints_p1) fprintf(stdout,"ATOM %d %f!\n",C2A_ind,x[i][1]);
     }
@@ -1100,7 +1245,7 @@ void FixMDtoCFD::compute_spatial_averaged_velocity(int ireg, int phase_groupbit)
   
   if (comm->me == 0 && update->ntimestep%nevery==0)
     for(int j=0;j<nC2ADataPoints_p1;j++){
-      fprintf(stdout,"current_step: %d  avg_vel_phase1: %f avg_vel_phase2: %f %f %f %f %f %d %d\n",update->ntimestep,phase1_C2A_global_avg_vel[j][0],phase2_C2A_global_avg_vel[j][1], v_value[j][0], v_value[j][1],phase1_C2A_global_avg_acc[j][0],phase2_C2A_global_avg_acc[j][1],j,phase1_C2A_numAtoms[j]);
+      fprintf(stdout,"current_step: %d  avg_vel_phase1: %f avg_vel_phase2: %f %f %f %f %f %d %d\n",update->ntimestep,phase1_C2A_global_avg_vel[j][0],phase2_C2A_global_avg_vel[j][1], v_value[j][0], v_value[j][1],phase1_C2A_global_avg_acc[j][0],phase2_C2A_global_avg_acc[j][1],j,nAtoms[j]);
     }
 }
 
