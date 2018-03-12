@@ -59,7 +59,7 @@ FixMDtoCFD::FixMDtoCFD(LAMMPS *lmp, int narg, char **arg) :
     factor_to_OF_vel=1.0e5;
     factor_to_lammps_vel=1.0e-5;
     //factor_to_lammps_vel=1.0;
-    mv_t2f=1.0/4184;
+    mv_t2f=1.0/4184e-7;
   }
   else if (strcmp(update->unit_style,"si") == 0) {
     factor_to_OF_vel=1;
@@ -557,8 +557,8 @@ void FixMDtoCFD::post_force(int vflag)
 
   //update_velocity(vflag);
   
-  //C_to_A_coupling(vflag);
-  C_to_A_coupling_velocity(vflag);
+  C_to_A_coupling(vflag);
+  //C_to_A_coupling_velocity(vflag);
 }
 
 void FixMDtoCFD::C_to_A_coupling(int vflag) {
@@ -594,20 +594,13 @@ void FixMDtoCFD::C_to_A_coupling(int vflag) {
 
   double tmp[nC2ADataPoints_p1][3];
   //if(update->ntimestep%nevery==0)
-    for (int j=0; j< nC2ADataPoints_p1; j++){
-      
-      tmp[j][0] = -phase1_C2A_global_avg_acc[j][0] + mv_t2f*mass[type[j]]*(v_value[j][0]-phase1_C2A_global_avg_vel[j][0])/update->dt;
-      tmp[j][1] = -phase1_C2A_global_avg_acc[j][1] + mv_t2f*mass[type[j]]*(v_value[j][1]-phase1_C2A_global_avg_vel[j][1])/update->dt;
-      tmp[j][2] = -phase1_C2A_global_avg_acc[j][2] + mv_t2f*mass[type[j]]*(v_value[j][2]-phase1_C2A_global_avg_vel[j][2])/update->dt;
-      
-      //tmp[j][0] = (v_value[j][0]-phase1_C2A_global_avg_vel[j][0]);
-      //tmp[j][1] = (v_value[j][1]-phase1_C2A_global_avg_vel[j][1]);
-
-      // tmp[j][0] = v_value[j][0];
-      // tmp[j][1] = v_value[j][1];
-      
-      //fprintf(stdout,"TT %d %d %f %f \n",update->ntimestep,j,tmp[j][0],tmp[j][1]);
-    }
+  for (int j=0; j< nC2ADataPoints_p1; j++){
+    tmp[j][0] = (v_value[j][0]-phase1_C2A_global_avg_vel[j][0])/update->dt;
+    tmp[j][1] = (v_value[j][1]-phase1_C2A_global_avg_vel[j][1])/update->dt;
+    tmp[j][2] = (v_value[j][2]-phase1_C2A_global_avg_vel[j][2])/update->dt;
+    
+    //fprintf(stdout,"TT %d %d %f %f \n",update->ntimestep,j,tmp[j][0],tmp[j][1]);
+  }
 
   int C2A_ind=0;
   if (varflag == CONSTANT) {
@@ -621,25 +614,21 @@ void FixMDtoCFD::C_to_A_coupling(int vflag) {
 	
 	if(C2A_ind<0 || C2A_ind>=nC2ADataPoints_p1) fprintf(stdout, "BIG ERROR %d %d\n", update->ntimestep, C2A_ind);
 	
-	//f[i][0] += mass[type[i]]*tmp[C2A_ind][0];
-	//f[i][1] += mass[type[i]]*tmp[C2A_ind][1];
-	
 	foriginal[0] += f[i][0];
 	foriginal[1] += f[i][1];
 	foriginal[2] += f[i][2];
 
 	if (xstyle) {
 	  //v[i][0] = tmp[C2A_ind][0];
-	  f[i][0] += tmp[C2A_ind][0];
-	  //fprintf(stdout, " TYPE %d %d MASS %f\n", i, type[i], mass[type[i]]);
+	  f[i][0] += -phase1_C2A_global_avg_acc[C2A_ind][0] + force->mvv2e*mass[type[i]]*tmp[C2A_ind][0];
 	}
 	if (ystyle) {	  
 	  //v[i][1] = tmp[C2A_ind][1];
-	  f[i][1] += tmp[C2A_ind][1];
+	  f[i][1] += -phase1_C2A_global_avg_acc[C2A_ind][1] + force->mvv2e*mass[type[i]]*tmp[C2A_ind][1];
 	}
 	if (zstyle) {
 	  //v[i][2] = tmp[C2A_ind][2];
-	  f[i][2] += tmp[C2A_ind][2];
+	  f[i][2] += -phase1_C2A_global_avg_acc[C2A_ind][2] + force->mvv2e*mass[type[i]]*tmp[C2A_ind][2];
 	}
       }
  
@@ -737,14 +726,11 @@ void FixMDtoCFD::C_to_A_coupling_velocity(int vflag) {
 
   double tmp[nC2ADataPoints_p1][3];
   //if(update->ntimestep%nevery==0)
-    for (int j=0; j< nC2ADataPoints_p1; j++){
-      tmp[j][0] = (v_value[j][0]-phase1_C2A_global_avg_vel[j][0]);
-      tmp[j][1] = (v_value[j][1]-phase1_C2A_global_avg_vel[j][1]);
-
-
-      //fprintf(stdout,"TT %d %d %f %f \n",update->ntimestep,j,tmp[j][0],tmp[j][1]);
-    }
-
+  for (int j=0; j< nC2ADataPoints_p1; j++){
+    tmp[j][0] = (v_value[j][0]-phase1_C2A_global_avg_vel[j][0]);
+    tmp[j][1] = (v_value[j][1]-phase1_C2A_global_avg_vel[j][1]);
+  }
+  
   int C2A_ind=0;
   if (varflag == CONSTANT) {
     for (int i = 0; i < nlocal; i++)
@@ -756,9 +742,6 @@ void FixMDtoCFD::C_to_A_coupling_velocity(int vflag) {
 	C2A_ind = fac_p1_C2A*(x[i][1]-region->extent_ylo);
 	
 	if(C2A_ind<0 || C2A_ind>=nC2ADataPoints_p1) fprintf(stdout, "BIG ERROR %d %d\n", update->ntimestep, C2A_ind);
-	
-	//f[i][0] += mass[type[i]]*tmp[C2A_ind][0];
-	//f[i][1] += mass[type[i]]*tmp[C2A_ind][1];
 	
 	foriginal[0] += f[i][0];
 	foriginal[1] += f[i][1];
