@@ -88,10 +88,11 @@ EXTRA_LINK_DEPENDS = $(PKG_LINK_DEPENDS)
 vpath %.cpp ..
 vpath %.h ..
 
-# Link target
+EXCLUDE_FILES=main.o output.o fix_ave_chunk.o fix_ave_time.o
 
-$(EXE):	$(OBJ) $(EXTRA_LINK_DEPENDS)
-	$(LINK) $(LINKFLAGS) $(EXTRA_PATH) $(OBJ) $(EXTRA_LIB) $(LIB) -o $(EXE)
+# Link target
+$(EXE):	$(filter-out $(EXCLUDE_FILES),$(OBJ)) $(EXTRA_LINK_DEPENDS)
+	$(LINK) $(LINKFLAGS) $(EXTRA_PATH) $(filter-out $(EXCLUDE_FILES),$(OBJ)) $(EXTRA_LIB) $(LIB) -o $(EXE)
 	$(SIZE) $(EXE)
 
 # Library targets
