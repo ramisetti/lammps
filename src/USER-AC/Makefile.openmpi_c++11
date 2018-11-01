@@ -8,13 +8,13 @@ SHELL = /bin/sh
 
 CC =		mpic++
 CCFLAGS =	-O3 \
-		-funroll-loops -fstrict-aliasing -Wall -W -Wno-uninitialized -std=c++11
+		-funroll-loops -fstrict-aliasing -Wall -W -Wno-uninitialized -std=c++11 -fopenmp
 #CCFLAGS =	-O0 -g
 SHFLAGS =	-fPIC
 DEPFLAGS =	-M
 
 LINK =		mpic++
-LINKFLAGS =	-O3
+LINKFLAGS =	-O3 -fopenmp
 LIB =           -lstdc++
 SIZE =		size
 

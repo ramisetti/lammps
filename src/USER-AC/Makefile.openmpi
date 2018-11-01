@@ -7,13 +7,13 @@ SHELL = /bin/sh
 # specify flags and libraries needed for your compiler
 
 CC =		mpic++
-CCFLAGS =	-O3 -funroll-loops -fstrict-aliasing -Wall -W -Wno-uninitialized
+CCFLAGS =	-O3 -funroll-loops -fstrict-aliasing -Wall -W -Wno-uninitialized -fopenmp
 #CCFLAGS =	-O0 -g
 SHFLAGS =	-fPIC
 DEPFLAGS =	-M
 
 LINK =		mpic++
-LINKFLAGS =	-O3
+LINKFLAGS =	-O3 -fopenmp
 LIB =           -lstdc++
 SIZE =		size
 
@@ -86,7 +86,7 @@ EXTRA_LINK_DEPENDS = $(PKG_LINK_DEPENDS)
 vpath %.cpp ..
 vpath %.h ..
 
-EXCLUDE_FILES=main.o output.o fix_ave_chunk.o fix_ave_time.o
+EXCLUDE_FILES=main_mui.o output_ac.o fix_ave_chunk_ac.o fix_ave_time_ac.o
 
 # Link target
 $(EXE):	$(filter-out $(EXCLUDE_FILES),$(OBJ)) $(EXTRA_LINK_DEPENDS)
